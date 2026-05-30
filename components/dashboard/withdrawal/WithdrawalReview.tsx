@@ -28,8 +28,8 @@ export function WithdrawalReview() {
         try {
             const response = await createWithdrawal({
                 currency,
-                amount,
-                walletAddress,
+                amount: parseFloat(amount),
+                destinationAddress: walletAddress,
             });
 
             setTransactionResult(response.transactionId, 'success');

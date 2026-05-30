@@ -144,10 +144,16 @@ export async function getTransactionById(id: string): Promise<Transaction> {
 
 // ==================== Withdrawal ====================
 
+// Confirmed against backend src/transactions/dtos/transaction.dto.ts:
+// - field is `destinationAddress` (not `walletAddress`)
+// - `amount` must be a number, not a string
+// - `beneficiaryId` and `walletId` are optional alternative targeting fields
 export interface CreateWithdrawalDto {
     currency: string;
-    amount: string;
-    walletAddress: string;
+    amount: number;
+    destinationAddress?: string;
+    beneficiaryId?: string;
+    walletId?: string;
 }
 
 export interface WithdrawalResponse {
