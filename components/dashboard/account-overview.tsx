@@ -9,6 +9,8 @@ import {
   CircleDollarSign,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { getBalances } from "@/lib/api/wallet";
+import { getProfile } from "@/lib/api/users";
 
 const truncateAddress = (addr: string) =>
   `${addr.slice(0, 6)}...${addr.slice(-4)}`;
@@ -33,23 +35,62 @@ export function AccountOverview({
   const [usdBalance, setUsdBalance] = useState("");
 
   useEffect(() => {
-    // TODO: replace this with your real API call e.g. getAccountOverview()
+    let cancelled = false;
+
+    const formatCurrency = (amount: string | number | undefined, currency: string) => {
+      if (amount === undefined || amount === null || amount === "") return "";
+      const raw = typeof amount === "string" ? amount.replace(/[^0-9.-]+/g, "") : String(amount);
+      const num = Number(raw);
+      if (!Number.isFinite(num)) return String(amount);
+      try {
+        const locale = currency === "NGN" ? "en-NG" : "en-US";
+        return new Intl.NumberFormat(locale, { style: "currency", currency }).format(num as number);
+      } catch {
+        return String(amount);
+      }
+    };
+
     const fetchAccount = async () => {
       try {
-        // Simulated delay — remove when real API is wired up
-        await new Promise((res) => setTimeout(res, 1000));
-        setWalletAddress("0x1234567890123456789012345678901234567890");
-        setBalance("₦ 325,980.65");
-        setNgnBalance("₦250,250");
-        setUsdBalance("$1,160.52");
-      } catch {
+        setIsLoading(true);
+        setError(null);
+
+        const [profile, balances] = await Promise.all([getProfile(), getBalances()]);
+
+        if (cancelled) return;
+
+        const addr = profile?.walletAddress ?? "";
+        setWalletAddress(addr);
+
+        const balanceMap: Record<string, string> = {};
+        for (const b of balances ?? []) {
+          if (!b || !b.currency) continue;
+          balanceMap[String(b.currency).toUpperCase()] = String(b.balance ?? "");
+        }
+
+        const ngn = balanceMap["NGN"] ?? balanceMap["NGN"];
+        const usd = balanceMap["USD"] ?? balanceMap["USD"];
+
+        const formattedNgn = ngn ? formatCurrency(ngn, "NGN") : "";
+        const formattedUsd = usd ? formatCurrency(usd, "USD") : "";
+
+        setNgnBalance(formattedNgn);
+        setUsdBalance(formattedUsd);
+
+        // Use NGN as primary total if available, otherwise USD, otherwise blank
+        setBalance(formattedNgn || formattedUsd || "");
+      } catch (err) {
+        console.error("Failed to load account data", err);
         setError("Failed to load account data");
       } finally {
-        setIsLoading(false);
+        if (!cancelled) setIsLoading(false);
       }
     };
 
     fetchAccount();
+    return () => {
+      cancelled = true;
+    };
   }, []);
   const handleCopyAddress = async () => {
     try {
