@@ -232,3 +232,46 @@ export async function createDeposit(
         message: json.message as string | undefined,
     };
 }
+
+// ==================== Swap ====================
+
+export interface CreateSwapDto {
+    fromCurrency: string;
+    toCurrency: string;
+    amount: string;
+}
+
+export interface SwapResponse {
+    transactionId: string;
+    status: 'pending' | 'success' | 'failed';
+    toAmount?: number;
+    exchangeRate?: number;
+    message?: string;
+}
+
+export async function createSwap(data: CreateSwapDto): Promise<SwapResponse> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const json = await apiClient<any>('/transactions/swap', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+
+    const transactionId = (json.transactionId ??
+        json.transaction_id ??
+        json.id ??
+        json.data?.id ??
+        json.data?.transactionId) as string;
+
+    const status = (json.status ?? json.data?.status ?? 'pending') as
+        | 'pending'
+        | 'success'
+        | 'failed';
+
+    return {
+        transactionId,
+        status,
+        toAmount: json.toAmount ?? json.to_amount,
+        exchangeRate: json.exchangeRate ?? json.exchange_rate,
+        message: json.message as string | undefined,
+    };
+}

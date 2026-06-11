@@ -1,85 +1,24 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { ChevronDown, AlertCircle, ArrowDownUp,  } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { ChevronDown, AlertCircle, ArrowDownUp, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getBalances } from "@/lib/api/wallet";
+import { createSwap } from "@/lib/api/transactions";
 
 interface CurrencyOption {
     id: string;
     name: string;
     symbol: string;
-    balance: string;
 }
 
-// Mock exchange rates: rate from NGN to each currency
-const MOCK_RATES: Record<string, Record<string, number>> = {
-    NGN: {
-        USD: 1 / 1580,
-        EUR: 1 / 1720,
-        GBP: 1 / 1980,
-        USDC: 1 / 1580,
-        ETH: 1 / 65000000,
-        NGN: 1,
-    },
-    USD: {
-        NGN: 1580,
-        EUR: 0.92,
-        GBP: 0.79,
-        USDC: 1,
-        ETH: 0.026,
-        USD: 1,
-    },
-    EUR: {
-        NGN: 1720,
-        USD: 1.09,
-        GBP: 0.86,
-        USDC: 1.09,
-        ETH: 0.028,
-        EUR: 1,
-    },
-    GBP: {
-        NGN: 1980,
-        USD: 1.27,
-        EUR: 1.16,
-        USDC: 1.27,
-        ETH: 0.032,
-        GBP: 1,
-    },
-    USDC: {
-        NGN: 1580,
-        USD: 1,
-        EUR: 0.92,
-        GBP: 0.79,
-        ETH: 0.026,
-        USDC: 1,
-    },
-    ETH: {
-        NGN: 65000000,
-        USD: 39000,
-        EUR: 35800,
-        GBP: 30800,
-        USDC: 39000,
-        ETH: 1,
-    },
-};
-
-// Mock balances (simulated user balances)
-const MOCK_BALANCES: Record<string, string> = {
-    NGN: "500,000.00",
-    USD: "1,250.50",
-    EUR: "987.75",
-    GBP: "750.00",
-    USDC: "2,100.00",
-    ETH: "0.50",
-};
-
 const CURRENCIES: CurrencyOption[] = [
-    { id: "NGN", name: "Nigerian Naira", symbol: "₦", balance: MOCK_BALANCES.NGN },
-    { id: "USD", name: "US Dollar", symbol: "$", balance: MOCK_BALANCES.USD },
-    { id: "EUR", name: "Euro", symbol: "€", balance: MOCK_BALANCES.EUR },
-    { id: "GBP", name: "British Pound", symbol: "£", balance: MOCK_BALANCES.GBP },
-    { id: "USDC", name: "USD Coin", symbol: "USDC", balance: MOCK_BALANCES.USDC },
-    { id: "ETH", name: "Ethereum", symbol: "ETH", balance: MOCK_BALANCES.ETH },
+    { id: "NGN", name: "Nigerian Naira", symbol: "₦" },
+    { id: "USD", name: "US Dollar", symbol: "$" },
+    { id: "EUR", name: "Euro", symbol: "€" },
+    { id: "GBP", name: "British Pound", symbol: "£" },
+    { id: "USDC", name: "USD Coin", symbol: "USDC" },
+    { id: "ETH", name: "Ethereum", symbol: "ETH" },
 ];
 
 export function ConvertForm() {
@@ -89,18 +28,58 @@ export function ConvertForm() {
     const [showFromDropdown, setShowFromDropdown] = useState(false);
     const [showToDropdown, setShowToDropdown] = useState(false);
     const [errors, setErrors] = useState<{ amount?: string }>({});
+    
+    const [balances, setBalances] = useState<Record<string, string>>({});
+    const [exchangeRate, setExchangeRate] = useState<number>(0);
+    const [isLoadingRate, setIsLoadingRate] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [rateError, setRateError] = useState<string | null>(null);
 
     const fromCurrencyData = CURRENCIES.find(c => c.id === fromCurrency) || CURRENCIES[0];
     const toCurrencyData = CURRENCIES.find(c => c.id === toCurrency) || CURRENCIES[1];
 
-    // Calculate exchange rate and converted amount
-    const exchangeRate = useMemo(() => {
-        if (!fromCurrency || !toCurrency) return 0;
-        return MOCK_RATES[fromCurrency]?.[toCurrency] || 0;
+    useEffect(() => {
+        getBalances().then((res) => {
+            const newBalances: Record<string, string> = {};
+            res.forEach(b => {
+                newBalances[b.currency] = b.balance;
+            });
+            setBalances(newBalances);
+        }).catch((err) => {
+            console.error("Failed to fetch balances", err);
+        });
+    }, []);
+
+    useEffect(() => {
+        if (!fromCurrency || !toCurrency) return;
+        setIsLoadingRate(true);
+        setRateError(null);
+        
+        fetch(`/api/exchange-rates?from=${fromCurrency}&to=${toCurrency}`)
+            .then(res => {
+                if (!res.ok) throw new Error("Failed to fetch rate");
+                return res.json();
+            })
+            .then(data => {
+                if (data.rate) {
+                    setExchangeRate(Number(data.rate));
+                } else {
+                    setExchangeRate(0);
+                    setRateError("Rates unavailable");
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                setExchangeRate(0);
+                setRateError("Rates unavailable");
+            })
+            .finally(() => {
+                setIsLoadingRate(false);
+            });
     }, [fromCurrency, toCurrency]);
 
     const convertedAmount = useMemo(() => {
-        if (!amount || isNaN(parseFloat(amount))) return "";
+        if (!amount || isNaN(parseFloat(amount)) || exchangeRate === 0) return "";
         const numAmount = parseFloat(amount);
         const result = numAmount * exchangeRate;
         return result.toLocaleString(undefined, {
@@ -117,8 +96,9 @@ export function ConvertForm() {
         setShowToDropdown(false);
     };
 
+    const fromBalanceStr = balances[fromCurrency] || "0.00";
     const handleMaxClick = () => {
-        const balanceStr = fromCurrencyData.balance.replace(/,/g, "");
+        const balanceStr = fromBalanceStr.replace(/,/g, "");
         setAmount(parseFloat(balanceStr).toString());
         if (errors.amount) setErrors(prev => ({ ...prev, amount: undefined }));
     };
@@ -129,8 +109,47 @@ export function ConvertForm() {
         if (errors.amount) setErrors(prev => ({ ...prev, amount: undefined }));
     };
 
+    const handleSubmit = async () => {
+        if (!amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0) {
+            setErrors({ amount: "Enter a valid amount" });
+            return;
+        }
+        const balanceNum = parseFloat(fromBalanceStr.replace(/,/g, ""));
+        if (parseFloat(amount) > balanceNum) {
+            setErrors({ amount: "Insufficient balance" });
+            return;
+        }
+        
+        setIsSubmitting(true);
+        setErrors({});
+        try {
+            const res = await createSwap({
+                fromCurrency,
+                toCurrency,
+                amount,
+            });
+            if (res.status === "failed") {
+                setErrors({ amount: res.message || "Swap failed" });
+            } else {
+                // Success
+                setAmount("");
+                // Refresh balances
+                const bals = await getBalances();
+                const newBalances: Record<string, string> = {};
+                bals.forEach(b => {
+                    newBalances[b.currency] = b.balance;
+                });
+                setBalances(newBalances);
+            }
+        } catch (err: unknown) {
+            const errorMessage = err instanceof Error ? err.message : "An error occurred during conversion";
+            setErrors({ amount: errorMessage });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
 
-    // Convert will be integrated when backend API is ready
+    const isButtonDisabled = !amount || isNaN(parseFloat(amount)) || parseFloat(amount) <= 0 || exchangeRate === 0 || !!rateError || isLoadingRate || isSubmitting;
 
     return (
         <div className="w-full max-w-md mx-auto px-4 py-6">
@@ -209,7 +228,7 @@ export function ConvertForm() {
                                                 </div>
                                             </div>
                                             <span className="text-sm text-muted-foreground">
-                                                {curr.balance}
+                                                {balances[curr.id] || "0.00"}
                                             </span>
                                         </button>
                                     ))}
@@ -224,7 +243,7 @@ export function ConvertForm() {
                                     Amount
                                 </label>
                                 <span className="text-xs text-muted-foreground">
-                                    Balance: {fromCurrencyData.balance}
+                                    Balance: {fromBalanceStr}
                                 </span>
                             </div>
                             <div className="relative">
@@ -340,7 +359,7 @@ export function ConvertForm() {
                                                 </div>
                                             </div>
                                             <span className="text-sm text-muted-foreground">
-                                                {curr.balance}
+                                                {balances[curr.id] || "0.00"}
                                             </span>
                                         </button>
                                     ))}
@@ -366,17 +385,31 @@ export function ConvertForm() {
                 </div>
 
                 {/* Rate Preview */}
-                {amount && exchangeRate > 0 && (
-                    <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-muted/30 border border-border/50">
-                        <span className="text-sm text-muted-foreground">Exchange Rate</span>
-                        <span className="text-sm font-semibold text-foreground">
-                            1 {fromCurrency} = {exchangeRate.toLocaleString(undefined, {
-                                minimumFractionDigits: fromCurrency === "ETH" || toCurrency === "ETH" ? 2 : 2,
-                                maximumFractionDigits: fromCurrency === "ETH" || toCurrency === "ETH" ? 8 : 2,
-                            })} {toCurrency}
-                        </span>
-                    </div>
-                )}
+                <div className="space-y-2">
+                    {isLoadingRate ? (
+                        <div className="flex items-center justify-center px-4 py-3 rounded-lg bg-muted/30 border border-border/50">
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mr-2" />
+                            <span className="text-sm text-muted-foreground">Fetching live rates...</span>
+                        </div>
+                    ) : rateError ? (
+                        <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive">
+                            <span className="text-sm font-medium flex items-center gap-2">
+                                <AlertCircle className="h-4 w-4" />
+                                {rateError}
+                            </span>
+                        </div>
+                    ) : amount && exchangeRate > 0 ? (
+                        <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-muted/30 border border-border/50">
+                            <span className="text-sm text-muted-foreground">Exchange Rate</span>
+                            <span className="text-sm font-semibold text-foreground">
+                                1 {fromCurrency} = {exchangeRate.toLocaleString(undefined, {
+                                    minimumFractionDigits: fromCurrency === "ETH" || toCurrency === "ETH" ? 2 : 2,
+                                    maximumFractionDigits: fromCurrency === "ETH" || toCurrency === "ETH" ? 8 : 2,
+                                })} {toCurrency}
+                            </span>
+                        </div>
+                    ) : null}
+                </div>
 
                 {/* Info Section */}
                 <div className="space-y-2 pt-2">
@@ -389,21 +422,31 @@ export function ConvertForm() {
                 <div className="space-y-3">
                     <button
                         type="button"
-                        disabled={true}
-                        title="Backend API integration coming soon in a future release"
+                        onClick={handleSubmit}
+                        disabled={isButtonDisabled}
+                        title={rateError ? "Rates unavailable" : undefined}
                         className={cn(
-                            "w-full py-3.5 rounded-xl font-semibold",
+                            "w-full py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2",
                             "bg-primary text-primary-foreground",
                             "hover:bg-primary/90 active:scale-[0.98]",
                             "transition-all duration-200",
-                            "opacity-60 cursor-not-allowed"
+                            isButtonDisabled && "opacity-60 cursor-not-allowed hover:bg-primary"
                         )}
                     >
-                        Convert (Coming Soon)
+                        {isSubmitting ? (
+                            <>
+                                <Loader2 className="h-5 w-5 animate-spin" />
+                                Converting...
+                            </>
+                        ) : (
+                            "Convert Now"
+                        )}
                     </button>
-                    <p className="text-xs text-center text-muted-foreground">
-                        Backend API integration pending.
-                    </p>
+                    {rateError && (
+                        <p className="text-xs text-center text-destructive">
+                            Unable to fetch exchange rates. Please try again later.
+                        </p>
+                    )}
                 </div>
             </div>
         </div>
