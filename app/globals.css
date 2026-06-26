@@ -115,3 +115,9 @@
     @apply bg-background text-foreground;
   }
 }
+
+@media print {
+  body * { visibility: hidden; }
+  #print-receipt, #print-receipt * { visibility: visible; }
+  #print-receipt { position: absolute; left: 0; top: 0; }
+}

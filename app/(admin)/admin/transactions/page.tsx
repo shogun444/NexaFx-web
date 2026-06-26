@@ -18,7 +18,7 @@ export default async function AdminTransactionsPage(props: {
         <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
         <div className="flex flex-col sm:flex-row items-center gap-4 w-full sm:w-auto">
           <TransactionSearch />
-          <ExportButton transactions={transactions} />
+          <ExportButton transactions={transactions as any} />
         </div>
       </div>
 
@@ -28,7 +28,7 @@ export default async function AdminTransactionsPage(props: {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User Email</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
@@ -39,23 +39,23 @@ export default async function AdminTransactionsPage(props: {
               {transactions.length > 0 ? (
                 transactions.map((tx) => (
                   <tr key={tx.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{tx.id}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{tx.userEmail}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{tx.txId}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{tx.username}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{tx.type}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
                       {tx.amount} {tx.currency}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        tx.status === 'Success' ? 'bg-green-100 text-green-800' :
-                        tx.status === 'Failed' ? 'bg-red-100 text-red-800' :
+                        tx.status.toLowerCase() === 'success' ? 'bg-green-100 text-green-800' :
+                        tx.status.toLowerCase() === 'failed' ? 'bg-red-100 text-red-800' :
                         'bg-yellow-100 text-yellow-800'
                       }`}>
                         {tx.status}
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(tx.date).toLocaleDateString()}
+                      {tx.date}
                     </td>
                   </tr>
                 ))

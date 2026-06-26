@@ -1,92 +1,296 @@
-export type TransactionType = "Deposit" | "Withdraw" | "Convert" | "Transfer";
-export type TransactionStatus = "Success" | "Failed" | "Pending";
+import { apiClient } from '../api-client';
 
-export interface Transaction {
-  id: string;
-  userId: string;
-  userEmail: string;
-  type: TransactionType;
-  status: TransactionStatus;
-  amount: number;
-  currency: string;
-  toAmount?: number;
-  toCurrency?: string;
-  date: string;
+export interface AdminMetrics {
+  registeredUsers: number;
+  totalTransactions: number;
+  pendingKyc: number;
+  currencies: number;
+  totalDeposits: number;
+  totalWithdrawals: number;
 }
 
+export interface AdminUser {
+  id: string;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+  phone: string | null;
+  walletAddress: string;
+  username: string;
+  transactions: number;
+  totalDeposit: number;
+  totalWithdraw: number;
+  kycStatus: 'Verified' | 'Unverified';
+  createdAt: string;
+  isActive: boolean;
+}
+
+export interface AdminTransaction {
+  id: string;
+  amount: number;
+  currency: string;
+  type: 'Deposit' | 'Withdraw' | 'Convert';
+  username: string;
+  userEmail?: string;
+  date: string;
+  txId: string;
+  status: string;
+}
+
+export interface PushNotification {
+  id: string;
+  title: string;
+  message: string;
+  status: 'Active' | 'Inactive';
+  createdAt: string;
+}
+
+interface AdminUserDto {
+  id?: string | number;
+  _id?: string | number;
+  email?: string;
+  firstName?: string | null;
+  first_name?: string | null;
+  lastName?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  walletAddress?: string | null;
+  wallet_address?: string | null;
+  address?: string | null;
+  username?: string | null;
+  avatarUrl?: string | null;
+  avatar_url?: string | null;
+  transactions?: number | string | null;
+  transactionCount?: number | string | null;
+  totalDeposit?: number | string | null;
+  total_deposit?: number | string | null;
+  totalWithdraw?: number | string | null;
+  total_withdraw?: number | string | null;
+  kycStatus?: string | null;
+  kyc_status?: string | null;
+  createdAt?: string | null;
+  created_at?: string | null;
+  isActive?: boolean | null;
+  is_active?: boolean | null;
+}
+
+interface AdminMetricsDto {
+  registeredUsers?: number | string | null;
+  totalTransactions?: number | string | null;
+  pendingKyc?: number | string | null;
+  currencies?: number | string | null;
+  totalDeposits?: number | string | null;
+  totalWithdrawals?: number | string | null;
+}
+
+interface AdminMetricsResponse {
+  data?: AdminMetricsDto;
+  registeredUsers?: number | string | null;
+  totalTransactions?: number | string | null;
+  pendingKyc?: number | string | null;
+  currencies?: number | string | null;
+  totalDeposits?: number | string | null;
+  totalWithdrawals?: number | string | null;
+}
+
+interface AdminUsersResponse {
+  data?: AdminUserDto[];
+}
+
+interface AdminUserResponse {
+  data?: AdminUserDto;
+}
+
+interface AdminTransactionDto {
+  id?: string | number;
+  _id?: string | number;
+  amount?: number | string | null;
+  currency?: string | null;
+  type?: string | null;
+  username?: string | null;
+  email?: string | null;
+  createdAt?: string | null;
+  date?: string | null;
+  txId?: string | null;
+  transactionRef?: string | null;
+  reference?: string | null;
+  status?: string | null;
+}
+
+interface AdminTransactionsResponse {
+  data?: AdminTransactionDto[];
+}
+
+interface PushNotificationDto {
+  id?: string | number;
+  _id?: string | number;
+  title?: string | null;
+  message?: string | null;
+  status?: string | null;
+  createdAt?: string | null;
+  created_at?: string | null;
+}
+
+interface PushNotificationsResponse {
+  data?: PushNotificationDto[];
+}
+
+interface PushNotificationResponse {
+  data?: PushNotificationDto;
+}
+
+// Safe normalization of Admin Users
+export function mapAdminUser(dto: AdminUserDto): AdminUser {
+  return {
+    id: String(dto.id ?? dto._id ?? ''),
+    email: String(dto.email ?? ''),
+    firstName: dto.firstName ?? dto.first_name ?? null,
+    lastName: dto.lastName ?? dto.last_name ?? null,
+    phone: dto.phone ?? null,
+    walletAddress: dto.walletAddress ?? dto.wallet_address ?? dto.address ?? '0x...',
+    username: dto.username ?? dto.email?.split('@')[0] ?? 'user',
+    transactions: Number(dto.transactions ?? dto.transactionCount ?? 0),
+    totalDeposit: Number(dto.totalDeposit ?? dto.total_deposit ?? 0),
+    totalWithdraw: Number(dto.totalWithdraw ?? dto.total_withdraw ?? 0),
+    kycStatus: dto.kycStatus === 'Verified' || dto.kyc_status === 'Verified' ? 'Verified' : 'Unverified',
+    createdAt: (() => {
+      const dateVal = dto.createdAt ?? dto.created_at;
+      return dateVal ? new Date(dateVal).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      }) : 'N/A';
+    })(),
+    isActive: Boolean(dto.isActive ?? dto.is_active ?? true),
+  };
+}
+
+export async function getAdminMetrics(): Promise<AdminMetrics> {
+  const response = await apiClient<AdminMetricsResponse>('/admin/metrics');
+  const data = response?.data ?? (response as AdminMetricsDto) ?? {};
+  return {
+    registeredUsers: Number(data.registeredUsers ?? 0),
+    totalTransactions: Number(data.totalTransactions ?? 0),
+    pendingKyc: Number(data.pendingKyc ?? 0),
+    currencies: Number(data.currencies ?? 0),
+    totalDeposits: Number(data.totalDeposits ?? 0),
+    totalWithdrawals: Number(data.totalWithdrawals ?? 0),
+  };
+}
+
+export const getAdminUsers = async (): Promise<AdminUser[]> => {
+  const response = await apiClient<AdminUsersResponse | AdminUserDto[]>('/admin/users');
+  const data = (Array.isArray(response) ? response : response?.data) ?? [];
+  return data.map(mapAdminUser);
+};
+
+export const getAdminUser = async (id: string): Promise<AdminUser> => {
+  const response = await apiClient<AdminUserResponse | AdminUserDto>(`/admin/users/${id}`);
+  const data = ('data' in response && response.data ? response.data : response) as AdminUserDto;
+  return mapAdminUser(data);
+};
+
+export const getAdminUserById = getAdminUser;
+
 export interface AdminTransactionFilters {
-  search?: string; // user email or transaction ID
-  type?: TransactionType;
-  status?: TransactionStatus;
-  startDate?: string;
-  endDate?: string;
+  search?: string;
+  type?: string;
+  status?: string;
   page?: number;
   limit?: number;
 }
 
-// Mock data generation for testing the UI
-const generateMockTransactions = (): Transaction[] => {
-  return Array.from({ length: 50 }).map((_, i) => ({
-    id: `tx_${Math.random().toString(36).substring(2, 9)}`,
-    userId: `usr_${Math.floor(Math.random() * 1000)}`,
-    userEmail: `user${i}@example.com`,
-    type: ["Deposit", "Withdraw", "Convert", "Transfer"][Math.floor(Math.random() * 4)] as TransactionType,
-    status: ["Success", "Failed", "Pending"][Math.floor(Math.random() * 3)] as TransactionStatus,
-    amount: parseFloat((Math.random() * 1000).toFixed(2)),
-    currency: "USD",
-    date: new Date(Date.now() - Math.random() * 10000000000).toISOString(),
-  }));
-};
+export async function getAdminTransactions(filters?: AdminTransactionFilters): Promise<{ data: AdminTransaction[], total: number, totalPages: number }> {
+  const params: Record<string, string> = {};
+  if (filters?.search) params.search = filters.search;
+  if (filters?.type && filters.type !== 'All') params.type = filters.type;
+  if (filters?.status && filters.status !== 'All') params.status = filters.status;
+  if (filters?.page) params.page = String(filters.page);
+  if (filters?.limit) params.limit = String(filters.limit);
 
-// Keep in memory so filters apply to a consistent dataset
-const MOCK_TRANSACTIONS = generateMockTransactions();
-
-export const getAdminTransactions = async (filters?: AdminTransactionFilters): Promise<{
-  data: Transaction[];
-  total: number;
-  totalPages: number;
-}> => {
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 500));
-
-  let filtered = [...MOCK_TRANSACTIONS];
+  const response = await apiClient<AdminTransactionsResponse | AdminTransactionDto[]>('/admin/transactions', { params });
+  const data = (Array.isArray(response) ? response : response?.data) ?? [];
+  const typeMap: Record<string, 'Deposit' | 'Withdraw' | 'Convert'> = {
+    deposit: 'Deposit',
+    withdrawal: 'Withdraw',
+    withdraw: 'Withdraw',
+    convert: 'Convert',
+    conversion: 'Convert',
+  };
+  
+  let mapped = data.map((dto) => {
+    const rawDate = dto.createdAt ?? dto.date;
+    return {
+      id: String(dto.id ?? dto._id ?? ''),
+      amount: Number(dto.amount ?? 0),
+      currency: String(dto.currency ?? 'NGN'),
+      type: typeMap[String(dto.type ?? '').toLowerCase()] ?? 'Deposit',
+      username: dto.username ?? dto.email ?? 'Unknown User',
+      userEmail: dto.email,
+      date: rawDate ? new Date(rawDate).toLocaleString('en-GB', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }) : 'N/A',
+      txId: dto.txId ?? dto.transactionRef ?? dto.reference ?? String(dto.id ?? '0x...'),
+      status: dto.status ?? 'active',
+    };
+  });
 
   if (filters?.search) {
-    const searchLower = filters.search.toLowerCase();
-    filtered = filtered.filter(
-      (tx) => tx.id.toLowerCase().includes(searchLower) || tx.userEmail.toLowerCase().includes(searchLower)
+    const s = filters.search.toLowerCase();
+    mapped = mapped.filter((t) => 
+      t.id.toLowerCase().includes(s) || 
+      t.txId.toLowerCase().includes(s) || 
+      t.username.toLowerCase().includes(s) || 
+      (t.userEmail && t.userEmail.toLowerCase().includes(s))
     );
   }
-  
-  if (filters?.type) {
-    filtered = filtered.filter((tx) => tx.type === filters.type);
-  }
-  
-  if (filters?.status) {
-    filtered = filtered.filter((tx) => tx.status === filters.status);
-  }
-
-  if (filters?.startDate) {
-    const start = new Date(filters.startDate).getTime();
-    filtered = filtered.filter(tx => new Date(tx.date).getTime() >= start);
-  }
-  
-  if (filters?.endDate) {
-    const end = new Date(filters.endDate).getTime();
-    filtered = filtered.filter(tx => new Date(tx.date).getTime() <= end);
-  }
-
-  const page = filters?.page || 1;
-  const limit = filters?.limit || 20;
-  const total = filtered.length;
-  const totalPages = Math.ceil(total / limit);
-  
-  const startIdx = (page - 1) * limit;
-  const data = filtered.slice(startIdx, startIdx + limit);
 
   return {
-    data,
-    total,
-    totalPages,
+    data: mapped,
+    total: mapped.length,
+    totalPages: 1
   };
-};
+}
+
+export async function getAdminPushNotifications(): Promise<PushNotification[]> {
+  const response = await apiClient<PushNotificationsResponse | PushNotificationDto[]>('/admin/push-notifications');
+  const data = (Array.isArray(response) ? response : response?.data) ?? [];
+  return data.map((dto) => {
+    const rawDate = dto.createdAt ?? dto.created_at;
+    return {
+      id: String(dto.id ?? dto._id ?? ''),
+      title: String(dto.title ?? ''),
+      message: String(dto.message ?? ''),
+      status: dto.status === 'Active' || dto.status === 'active' ? 'Active' : 'Inactive',
+      createdAt: rawDate ? new Date(rawDate).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      }) : 'N/A',
+    };
+  });
+}
+
+export async function createAdminPushNotification(payload: { title: string; message: string }): Promise<PushNotification> {
+  const response = await apiClient<PushNotificationResponse | PushNotificationDto>('/admin/push-notifications', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+  const data = ('data' in response && response.data ? response.data : response) as PushNotificationDto;
+  const rawDate = data.createdAt ?? data.created_at;
+  return {
+    id: String(data.id ?? data._id ?? ''),
+    title: String(data.title ?? ''),
+    message: String(data.message ?? ''),
+    status: data.status === 'Active' || data.status === 'active' ? 'Active' : 'Inactive',
+    createdAt: rawDate ? new Date(rawDate).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    }) : 'N/A',
+  };
+}
