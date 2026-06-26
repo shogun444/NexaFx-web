@@ -41,6 +41,15 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
+  async redirects() {
+    return [
+      {
+        source: "/login",
+        destination: "/sign-in",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default withPWA({
@@ -48,4 +57,4 @@ export default withPWA({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === "development",
-})(config);
+})(nextConfig);

@@ -17,6 +17,7 @@ export interface AdminUser {
   phone: string | null;
   walletAddress: string;
   username: string;
+  avatarUrl: string | null;
   transactions: number;
   totalDeposit: number;
   totalWithdraw: number;
@@ -31,6 +32,7 @@ export interface AdminTransaction {
   currency: string;
   type: 'Deposit' | 'Withdraw' | 'Convert';
   username: string;
+  userEmail?: string;
   date: string;
   txId: string;
   status: string;
@@ -148,6 +150,7 @@ export function mapAdminUser(dto: AdminUserDto): AdminUser {
     phone: dto.phone ?? null,
     walletAddress: dto.walletAddress ?? dto.wallet_address ?? dto.address ?? '0x...',
     username: dto.username ?? dto.email?.split('@')[0] ?? 'user',
+    avatarUrl: dto.avatarUrl ?? dto.avatar_url ?? null,
     transactions: Number(dto.transactions ?? dto.transactionCount ?? 0),
     totalDeposit: Number(dto.totalDeposit ?? dto.total_deposit ?? 0),
     totalWithdraw: Number(dto.totalWithdraw ?? dto.total_withdraw ?? 0),
@@ -177,22 +180,35 @@ export async function getAdminMetrics(): Promise<AdminMetrics> {
   };
 }
 
-export const getAdminUsers = async (): Promise<AdminUser[]> => {
+export async function getAdminUsers(): Promise<AdminUser[]> {
   const response = await apiClient<AdminUsersResponse | AdminUserDto[]>('/admin/users');
   const data = (Array.isArray(response) ? response : response?.data) ?? [];
   return data.map(mapAdminUser);
-};
+}
 
-export const getAdminUser = async (id: string): Promise<AdminUser> => {
+export async function getAdminUserById(id: string): Promise<AdminUser> {
   const response = await apiClient<AdminUserResponse | AdminUserDto>(`/admin/users/${id}`);
   const data = ('data' in response && response.data ? response.data : response) as AdminUserDto;
   return mapAdminUser(data);
-};
+}
 
-export const getAdminUserById = getAdminUser;
+export interface AdminTransactionFilters {
+  search?: string;
+  type?: string;
+  status?: string;
+  page?: number;
+  limit?: number;
+}
 
-export async function getAdminTransactions(): Promise<AdminTransaction[]> {
-  const response = await apiClient<AdminTransactionsResponse | AdminTransactionDto[]>('/admin/transactions');
+export async function getAdminTransactions(filters?: AdminTransactionFilters): Promise<{ data: AdminTransaction[], total: number, totalPages: number }> {
+  const params: Record<string, string> = {};
+  if (filters?.search) params.search = filters.search;
+  if (filters?.type && filters.type !== 'All') params.type = filters.type;
+  if (filters?.status && filters.status !== 'All') params.status = filters.status;
+  if (filters?.page) params.page = String(filters.page);
+  if (filters?.limit) params.limit = String(filters.limit);
+
+  const response = await apiClient<AdminTransactionsResponse | AdminTransactionDto[]>('/admin/transactions', { params });
   const data = (Array.isArray(response) ? response : response?.data) ?? [];
   const typeMap: Record<string, 'Deposit' | 'Withdraw' | 'Convert'> = {
     deposit: 'Deposit',
@@ -201,7 +217,8 @@ export async function getAdminTransactions(): Promise<AdminTransaction[]> {
     convert: 'Convert',
     conversion: 'Convert',
   };
-  return data.map((dto) => {
+  
+  let mapped = data.map((dto) => {
     const rawDate = dto.createdAt ?? dto.date;
     return {
       id: String(dto.id ?? dto._id ?? ''),
@@ -209,6 +226,7 @@ export async function getAdminTransactions(): Promise<AdminTransaction[]> {
       currency: String(dto.currency ?? 'NGN'),
       type: typeMap[String(dto.type ?? '').toLowerCase()] ?? 'Deposit',
       username: dto.username ?? dto.email ?? 'Unknown User',
+      userEmail: dto.email,
       date: rawDate ? new Date(rawDate).toLocaleString('en-GB', {
         day: '2-digit',
         month: '2-digit',
@@ -220,6 +238,22 @@ export async function getAdminTransactions(): Promise<AdminTransaction[]> {
       status: dto.status ?? 'active',
     };
   });
+
+  if (filters?.search) {
+    const s = filters.search.toLowerCase();
+    mapped = mapped.filter((t) => 
+      t.id.toLowerCase().includes(s) || 
+      t.txId.toLowerCase().includes(s) || 
+      t.username.toLowerCase().includes(s) || 
+      (t.userEmail && t.userEmail.toLowerCase().includes(s))
+    );
+  }
+
+  return {
+    data: mapped,
+    total: mapped.length,
+    totalPages: 1
+  };
 }
 
 export async function getAdminPushNotifications(): Promise<PushNotification[]> {
