@@ -80,7 +80,7 @@ NexaFX prioritizes the security of user funds and data:
 
 ## 🤝 Contributing
 
-We welcome contributions from the community! Please read our [Contributing Guidelines](https://github.com/Nexacore-Org/NexaFx-web/blob/main/Contribution.md) before submitting pull requests.
+We welcome contributions from the community! Please read our [Contributing Guidelines](https://github.com/Nexacore-Org/NexaFx-web/blob/v2/Contribution.md) before submitting pull requests.
 
 ## 📝 License
 

@@ -7,7 +7,7 @@ Thank you for your interest in contributing to **NexaFx**! 🚀 We welcome contr
 
 ⚠️ **Avoid Generic Comments:** Comments such as 🚫
 "Can I help with this?" 🚫
-"I’d love to contribute!" 🚫
+"I'd love to contribute!" 🚫
 "Check out my profile!" or 🚫
 "Can I work on this?"... these will not be considered.
 
@@ -112,7 +112,7 @@ The platform should now be running at `http://localhost:3000/`.
 
 ## Branching Strategy & Commit Message Format
 ### Branching Strategy
-- **main**: Stable, production-ready code.
+- **v2**: Stable, production-ready code.
 - **dev**: Latest development changes.
 - **feature/xyz**: New features.
 - **bugfix/xyz**: Bug fixes.
